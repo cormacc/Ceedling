@@ -12,7 +12,9 @@ class JunitXmlReport < Plugin
 
   OUTPUT_FILE_NAME='report_junit.xml'
 
-  TAGS = { :testrun => 'testsuites', :testgroup => 'testsuite', :testcase => 'testcase', :testfailure => 'failure'}
+  TAGS = { :testrun => 'testsuites', :testgroup => 'testsuite', :testcase => 'testcase', :testfailure => 'failure', :testignored => 'skipped' }
+  
+  TEST_RESULTS = { :passed => 'passed', :failed => 'failed', :ignored => 'ignored' }
 
   def setup
     @results_list = {}
@@ -44,8 +46,9 @@ class JunitXmlReport < Plugin
 
   def write_results( results, stream )
     write_header( results[:counts], stream ) #includes statistics
-    write_successes( results[:successes], stream)
+    write_successes( results[:successes], stream )
     write_failures( results[:failures], stream )
+    write_ignores( results[:ignores], stream )
     write_footer( stream )
   end
 
@@ -57,22 +60,29 @@ class JunitXmlReport < Plugin
 
   def write_successes( results, stream )
     results.each do |result|
-      write_result(result, stream, true)
+      write_result(result, stream, :passed)
     end
   end
 
   def write_failures( results, stream )
     results.each do |result|
-      write_result(result, stream, false)
+      write_result(result, stream, :failed)
+    end
+  end
+  
+  def write_ignores( results, stream )
+    results.each do |result|
+      write_result(result, stream, :ignored)
     end
   end
 
-  def write_result(result, stream, passed)
+  def write_result(result, stream, test_result)
       file_name = File.join( result[:source][:path], result[:source][:file] )
       class_name = build_class_name( result[:source][:path], result[:source][:file] )
       result[:collection].each do |item|
         stream.puts "\t\t<#{TAGS[:testcase]} classname='#{class_name}' name='#{item[:test]}'>"
-        stream.puts "\t\t\t<#{TAGS[:testfailure]} type='failure' message='#{item[:message]}'>#{file_name}:#{item[:line]}</#{TAGS[:testfailure]}>" unless passed
+        stream.puts "\t\t\t<#{TAGS[:testfailure]} type='failure' message='#{item[:message]}'>#{file_name}:#{item[:line]}</#{TAGS[:testfailure]}>" if test_result == :failed
+        stream.puts "\t\t\t<#{TAGS[:testignored]} />" if test_result == :ignored
         stream.puts "\t\t</#{TAGS[:testcase]}>"
         @test_counter += 1
       end
